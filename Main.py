@@ -1,5 +1,7 @@
 import time
 from datetime import datetime
+import pygame
+import sys
 
 # ---------- Klassen ----------
 
@@ -13,7 +15,7 @@ class Menu:
         return self.price * self.quantity
 
     def __str__(self):
-        return f"{self.menu_name} x{self.quantity} - ${self.total_price():.2f}"
+        return f"{self.menu_name} x{self.quantity} - €{self.total_price():.2f}"
 
 class FoodMenu(Menu):
     def __init__(self, name, price, quantity=1, category="General"):
@@ -21,7 +23,7 @@ class FoodMenu(Menu):
         self.category = category
 
     def __str__(self):
-        return f"{self.menu_name} ({self.category}) x{self.quantity} - ${self.total_price():.2f}"
+        return f"{self.menu_name} ({self.category}) x{self.quantity} - €{self.total_price():.2f}"
 
 class DrinkMenu(Menu):
     def __init__(self, name, price, size="Medium", alcoholic=False):
@@ -31,14 +33,14 @@ class DrinkMenu(Menu):
 
     def __str__(self):
         alc = "Alcoholic" if self.alcoholic else "Non-alcoholic"
-        return f"{self.menu_name} ({self.size}, {alc}) - ${self.total_price():.2f}"
+        return f"{self.menu_name} ({self.size}, {alc}) - €{self.total_price():.2f}"
 
 class DessertMenu(Menu):
     def __init__(self, name, price):
         super().__init__(name, price, quantity=1)
 
     def __str__(self):
-        return f"{self.menu_name} - ${self.total_price():.2f}"
+        return f"{self.menu_name} - €{self.total_price():.2f}"
 
 class ModeOfPayment:
     def __init__(self, customer_name: str, amount: float):
@@ -124,44 +126,118 @@ def create_bowl(bases, proteins, toppings, drinks, desserts):
 
 # ---------- Grafik ----------
 
-def print_leaf():
-    print(r"""
-         _______
-     .-        -.
-    /            \
-   |              |
-   |,  .-.  .-.  ,|
-   | )(_o/  \o_)( |
-   |/     /\     \|
-   (_     ^^     _)
-    \__|IIIIII|__/
-     | \IIIIII/ |
-     \          /
-      `--------`
-    """)
-
 def print_bowl():
     print(r"""
         .-----------------.
        /                   \
-      /  🥑  🍅   🥕   🧅   \
-     |   🥬   🍚   🧄   🧄    |
-     |     🍗   🧄   🥦       |
+      /   🥗    🥕    🍅    🥒   \
+     |   🥬   🍚   🧄   🧅    |
+     |      🥦    🥑           |
       \                   /
        `-----------------'
     """)
 
+# ---------- Pygame Bon-Funktion ----------
+
+def zeichne_bon(screen, font, bowls, customer_name):
+    screen.fill((255, 255, 255))
+    y = 20
+
+    title = font.render("BON - Green Bowls Restaurant", True, (0, 128, 0))
+    screen.blit(title, (20, y))
+    y += 40
+
+    # Zeige Kundenname und Zeit
+    zeit_text = datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S UTC")
+    name_text = font.render(f"Kunde: {customer_name}", True, (0, 0, 0))
+    zeit_text_surface = font.render(f"Zeit: {zeit_text}", True, (0, 0, 0))
+    screen.blit(name_text, (20, y))
+    y += 30
+    screen.blit(zeit_text_surface, (20, y))
+    y += 40
+
+    gesamt = 0
+    for i, bowl in enumerate(bowls, start=1):
+        header = font.render(f"Schüssel #{i}:", True, (0, 0, 0))
+        screen.blit(header, (20, y))
+        y += 30
+
+        text_base = font.render(f"Base: {bowl['base'].menu_name} x{bowl['base'].quantity} - €{bowl['base'].total_price():.2f}", True, (0, 0, 0))
+        screen.blit(text_base, (40, y))
+        y += 25
+
+        text_protein = font.render(f"Protein: {bowl['protein'].menu_name} x{bowl['protein'].quantity} - €{bowl['protein'].total_price():.2f}", True, (0, 0, 0))
+        screen.blit(text_protein, (40, y))
+        y += 25
+
+        text_toppings = font.render("Toppings:", True, (0, 0, 0))
+        screen.blit(text_toppings, (40, y))
+        y += 25
+        for topping in bowl["toppings"]:
+            topping_text = font.render(f"{topping.menu_name} x{topping.quantity} - €{topping.total_price():.2f}", True, (0, 0, 0))
+            screen.blit(topping_text, (60, y))
+            y += 20
+
+        if bowl["drink"]:
+            text_drink = font.render(f"Drink: {bowl['drink'].menu_name} x{bowl['drink'].quantity} - €{bowl['drink'].total_price():.2f}", True, (0, 0, 0))
+            screen.blit(text_drink, (40, y))
+            y += 25
+
+        if bowl["dessert"]:
+            text_dessert = font.render(f"Dessert: {bowl['dessert'].menu_name} x{bowl['dessert'].quantity} - €{bowl['dessert'].total_price():.2f}", True, (0, 0, 0))
+            screen.blit(text_dessert, (40, y))
+            y += 25
+
+        subtotal = (
+            bowl["base"].total_price() +
+            bowl["protein"].total_price() +
+            sum(t.total_price() for t in bowl["toppings"]) +
+            (bowl["drink"].total_price() if bowl["drink"] else 0) +
+            (bowl["dessert"].total_price() if bowl["dessert"] else 0)
+        )
+        subtotal_text = font.render(f"Subtotal: €{subtotal:.2f}", True, (0, 0, 0))
+        screen.blit(subtotal_text, (40, y))
+        y += 30
+
+        gesamt += subtotal
+
+    pygame.draw.line(screen, (0, 128, 0), (20, y), (380, y), 2)
+    y += 10
+
+    total_text = font.render(f"Gesamt: €{gesamt:.2f}", True, (0, 128, 0))
+    screen.blit(total_text, (20, y))
+
+    y += 50
+    info_text = font.render("Fenster schließen zum Beenden.", True, (100, 100, 100))
+    screen.blit(info_text, (20, y))
+
+    pygame.display.flip()
+
+# ---------- Startmenü ----------
+
+def start_menu():
+    print("Willkommen bei Green Bowls Restaurant!")
+    print("1. Menü starten")
+    print("2. Exit")
+    while True:
+        choice = input("Bitte wählen Sie eine Option (1 oder 2): ").strip()
+        if choice == '1':
+            return True
+        elif choice == '2':
+            print("Programm wird beendet. Auf Wiedersehen!")
+            return False
+        else:
+            print("Ungültige Eingabe. Bitte 1 oder 2 eingeben.")
+
 # ---------- Main ----------
 
 def main():
-    print_leaf()
+    if not start_menu():
+        return  # Exit
+
     print("Loading Green Bowls Restaurant...")
     time.sleep(1.5)
     print_bowl()
-    time.sleep(1)
-    print("Welcome to Green Bowls Restaurant!")
-    time.sleep(0.8)
-    print("Please choose the ingredients for your bowl!\n")
     time.sleep(0.5)
 
     bases = [
@@ -223,7 +299,7 @@ def main():
             (bowl["drink"].total_price() if bowl["drink"] else 0) +
             (bowl["dessert"].total_price() if bowl["dessert"] else 0)
         )
-        print(f" Total price: ${total:.2f}")
+        print(f" Total price: €{total:.2f}")
         grand_total += total
 
     customer_name = input("\nPlease enter your name for the receipt: ")
@@ -231,7 +307,29 @@ def main():
     print(payment.get_receipt_header())
     print("Thank you for your order!")
 
+    # --- Pygame Bon anzeigen ---
+    pygame.init()
+    screen = pygame.display.set_mode((400, 600))
+    pygame.display.set_caption("Green Bowls Bon")
+    font = pygame.font.SysFont("Arial", 20)
+
+    zeichne_bon(screen, font, bowls, customer_name)
+
+    # Eventloop fürs Pygame-Fenster
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+
+    pygame.quit()
+    sys.exit()
+
 # ---------- Start ----------
 
 if __name__ == "__main__":
     main()
+
+
+
+
